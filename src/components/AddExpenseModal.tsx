@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { addExpense } from '../lib/expenses'
 import { X, Receipt, Euro } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface AddExpenseModalProps {
   isOpen: boolean
@@ -28,7 +29,10 @@ export default function AddExpenseModal({
     e.preventDefault()
     const parsedAmount = parseFloat(amount)
 
-    if (!description.trim() || isNaN(parsedAmount) || parsedAmount <= 0) return
+    if (!description.trim() || isNaN(parsedAmount) || parsedAmount <= 0) {
+      toast.error('Inserisci una descrizione e un importo validi')
+      return
+    }
 
     setLoading(true)
     // Per ora dividiamo tra l'utente corrente (puoi estendere a tutti i membri)
@@ -43,10 +47,20 @@ export default function AddExpenseModal({
     setLoading(false)
 
     if (success) {
+      // Notifica in-app di successo
+      toast.success('Spesa registrata! 💸', {
+        description: `${description.trim()} - €${parsedAmount.toFixed(2)}`,
+      })
+
       setDescription('')
       setAmount('')
       onExpenseAdded()
       onClose()
+    } else {
+      // Notifica in-app di errore
+      toast.error('Errore durante il salvataggio della spesa', {
+        description: 'Riprova tra qualche istante',
+      })
     }
   }
 

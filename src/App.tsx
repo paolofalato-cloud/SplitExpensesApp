@@ -7,6 +7,7 @@ import { getGroupExpenses } from './lib/expenses'
 import type { Expense } from './lib/expenses'
 import ExpenseDetailModal from './components/ExpenseDetailModal'
 import InstallPrompt from './components/InstallPrompt'
+import { Toaster, toast } from 'sonner'
 
 // Import per Saldi e Rimborsi
 import { calculateGroupBalances, simplifyDebts } from './lib/balances'
@@ -116,6 +117,42 @@ export default function App() {
     }
   }, [activeGroup])
 
+  // Notifiche Realtime: ascolta le nuove spese aggiunte da altri membri nel gruppo attivo
+  useEffect(() => {
+    if (!activeGroup || !user) return
+
+    const channel = supabase
+      .channel(`realtime-expenses-${activeGroup.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'expenses',
+          filter: `group_id=eq.${activeGroup.id}`,
+        },
+        (payload) => {
+          const newExpense = payload.new as Expense
+
+          // Se la spesa è stata inserita da un altro membro del gruppo
+          if (newExpense.paid_by !== user.id) {
+            toast.info('Nuova spesa aggiunta nel gruppo! 📊', {
+              description: `${newExpense.description} - €${Number(newExpense.amount).toFixed(2)}`,
+            })
+
+            // Ricarica automaticamente spese e saldi aggiornati
+            loadExpenses(activeGroup.id)
+          }
+        }
+      )
+      .subscribe()
+
+    // Pulizia del canale quando si cambia gruppo o si chiude l'app
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [activeGroup, user])
+
   const loadGroups = async () => {
     const fetchedGroups = await getUserGroups()
     setGroups(fetchedGroups)
@@ -214,6 +251,9 @@ export default function App() {
     <div className="min-h-screen bg-slate-950 text-slate-100 pb-24">
       {/* Banner Installazione PWA */}
       <InstallPrompt />
+
+      {/* Componente globale per le notifiche toast */}
+      <Toaster position="top-center" richColors theme="dark" />
 
       {/* Header Top Responsive */}
       <header className="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3">
