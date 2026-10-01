@@ -41,6 +41,7 @@ import {
   Search,
   Bell, 
   BellCheck,
+  FolderPlus,
   LogOut as LeaveIcon,
   Trash2 as DeleteIcon,
 } from 'lucide-react'
@@ -311,12 +312,21 @@ export default function App() {
       <InstallPrompt />
 
       {/* Componente globale per le notifiche toast */}
-      <Toaster position="top-center" richColors theme="dark" />
+      <Toaster 
+        position="top-center" 
+        richColors 
+        theme="dark" 
+        toastOptions={{
+          style: {
+            marginTop: 'env(safe-area-inset-top)',
+          },
+        }}
+      />
 
       {/* Header Top Responsive */}
-      <header className="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 py-3">
+      <header className="sticky top-0 z-30 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 pt-[calc(env(safe-area-inset-top)+0.75rem)] pb-3">
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
-          
+
           {/* Selettore Gruppo */}
           <div className="relative">
             <button
@@ -429,18 +439,27 @@ export default function App() {
             )}
 
             {/* Nome utente e Logout */}
-            <div className="flex items-center gap-2 pl-2 border-l border-slate-800">
-              <div className="hidden sm:block text-right">
-                <p className="text-xs font-bold text-slate-200 leading-tight">
-                  {user?.user_metadata?.full_name || 'Utente'}
-                </p>
-                <p className="text-[10px] text-emerald-400">Online</p>
+            <div className="flex items-center gap-2.5 pl-2 border-l border-slate-800">
+              
+              {/* Avatar e Nome (Prende in sicurezza i metadati o la proprietà diretta) */}
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-xs shrink-0">
+                  {((user as any)?.user_metadata?.full_name || (user as any)?.full_name || 'U')[0].toUpperCase()}
+                </div>
+                
+                <div className="text-left">
+                  <p className="text-xs font-bold text-slate-200 max-w-[80px] sm:max-w-none truncate leading-tight">
+                    {((user as any)?.user_metadata?.full_name || (user as any)?.full_name || 'Utente').split(' ')[0]}
+                  </p>
+                  <p className="text-[10px] text-emerald-400">Online</p>
+                </div>
               </div>
 
+              {/* Pulsante Logout */}
               <button
                 onClick={() => supabase.auth.signOut()}
                 title="Logout"
-                className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 transition"
+                className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 transition shrink-0"
               >
                 <LogOut size={18} />
               </button>
@@ -493,91 +512,114 @@ export default function App() {
 
             {/* SCHEDA OPZIONI */}
             {activeTab === 'settings' && (
-              <div className="space-y-6">
-                <div className="flex items-center gap-2 mb-2">
-                  <Settings size={20} className="text-emerald-400" />
-                  <h2 className="text-base font-bold text-white">Impostazioni Gruppo</h2>
+              <div className="space-y-6 pb-6">
+                
+                {/* Intestazione della Tab */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Settings size={20} className="text-emerald-400" />
+                    <h2 className="text-base font-bold text-white">Opzioni Gruppo</h2>
+                  </div>
+                  
+                  {/* Tasto rapido per creare un nuovo gruppo (aggiunto in precedenza) */}
+                  <button
+                    onClick={() => setIsCreateGroupOpen(true)}
+                    className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 px-3 py-1.5 rounded-xl transition flex items-center gap-1.5"
+                  >
+                    <FolderPlus size={14} /> + Nuovo Gruppo
+                  </button>
                 </div>
 
+                {/* BLOCCO 1: Informazioni Generali (Nome e Valuta insieme) */}
                 <form onSubmit={handleUpdateGroup} className="card-glass p-5 space-y-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Nome del Gruppo
-                    </label>
-                    <input
-                      type="text"
-                      value={editGroupName}
-                      onChange={(e) => setEditGroupName(e.target.value)}
-                      required
-                      className="input-field"
-                    />
-                  </div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800/80 pb-2">
+                    Informazioni di Base
+                  </h3>
 
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
-                      Valuta Predefinita
-                    </label>
-                    <select
-                      value={editGroupCurrency}
-                      onChange={(e) => setEditGroupCurrency(e.target.value)}
-                      className="input-field"
-                    >
-                      <option value="EUR">EUR (€)</option>
-                      <option value="USD">USD ($)</option>
-                      <option value="GBP">GBP (£)</option>
-                      <option value="CHF">CHF (CHF)</option>
-                    </select>
-                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        Nome del Gruppo
+                      </label>
+                      <input
+                        type="text"
+                        value={editGroupName}
+                        onChange={(e) => setEditGroupName(e.target.value)}
+                        required
+                        className="input-field"
+                      />
+                    </div>
 
-                  <div className="pt-4 border-t border-slate-800 space-y-3">
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                      Notifiche & Preferenze
-                    </h3>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        handleTogglePushNotifications()
-                      }}
-                      className={`w-full p-3.5 border rounded-2xl text-xs font-semibold flex items-center justify-between transition active:scale-[0.99] ${
-                        isPushSubscribed
-                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                          : 'bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-200'
-                      }`}
-                    >
-                      <span className="flex items-center gap-2">
-                        {isPushSubscribed ? (
-                          <BellCheck size={16} className="text-emerald-400" />
-                        ) : (
-                          <Bell size={16} className="text-slate-400" />
-                        )}
-                        {isPushSubscribed ? 'Notifiche Push Attive' : 'Attiva Notifiche Web Push'}
-                      </span>
-
-                      <span
-                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                          isPushSubscribed ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-500'
-                        }`}
+                    <div>
+                      <label className="block text-xs font-semibold text-slate-300 mb-1">
+                        Valuta Predefinita
+                      </label>
+                      <select
+                        value={editGroupCurrency}
+                        onChange={(e) => setEditGroupCurrency(e.target.value)}
+                        className="input-field"
                       >
-                        {isPushSubscribed ? 'Abilitato' : 'Inattivo'}
-                      </span>
-                    </button>
+                        <option value="EUR">EUR (€)</option>
+                        <option value="USD">USD ($)</option>
+                        <option value="GBP">GBP (£)</option>
+                        <option value="CHF">CHF (CHF)</option>
+                      </select>
+                    </div>
                   </div>
 
                   <button
                     type="submit"
                     disabled={isSavingGroup}
-                    className="btn-primary w-full text-xs py-2.5 flex items-center justify-center gap-2"
+                    className="btn-primary w-full text-xs py-2.5 flex items-center justify-center gap-2 mt-2"
                   >
                     <Save size={16} />
                     {isSavingGroup ? 'Salvataggio...' : 'Salva Modifiche'}
                   </button>
                 </form>
 
-                <div className="pt-4 border-t border-slate-800 space-y-3">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+
+                {/* BLOCCO 2: Preferenze & Notifiche */}
+                <div className="card-glass p-5 space-y-4">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 border-b border-slate-800/80 pb-2">
+                    Notifiche & Preferenze
+                  </h3>
+
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      handleTogglePushNotifications()
+                    }}
+                    className={`w-full p-3.5 border rounded-2xl text-xs font-semibold flex items-center justify-between transition active:scale-[0.99] ${
+                      isPushSubscribed
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                        : 'bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-200'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      {isPushSubscribed ? (
+                        <BellCheck size={16} className="text-emerald-400" />
+                      ) : (
+                        <Bell size={16} className="text-slate-400" />
+                      )}
+                      {isPushSubscribed ? 'Notifiche Push Attive' : 'Attiva Notifiche Web Push'}
+                    </span>
+
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                        isPushSubscribed ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-500'
+                      }`}
+                    >
+                      {isPushSubscribed ? 'Abilitato' : 'Inattivo'}
+                    </span>
+                  </button>
+                </div>
+
+
+                {/* BLOCCO 3: Gestione Avanzata (Zona Pericolo staccata e ordinata) */}
+                <div className="card-glass p-5 space-y-4 border-rose-500/10">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-rose-400/80 border-b border-slate-800/80 pb-2">
                     Gestione Avanzata
                   </h3>
 
@@ -605,6 +647,7 @@ export default function App() {
                     )}
                   </div>
                 </div>
+
               </div>
             )}
 
