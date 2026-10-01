@@ -12,7 +12,7 @@ export default defineConfig({
       devOptions: {
         enabled: true, // Abilita PWA e Service Worker in dev (localhost)
       },
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      includeAssets: ['pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
         name: 'Split Expenses',
         short_name: 'SplitExpenses',
