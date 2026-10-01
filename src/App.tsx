@@ -428,13 +428,23 @@ export default function App() {
               </button>
             )}
 
-            <button
-              onClick={() => supabase.auth.signOut()}
-              title="Logout"
-              className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 transition"
-            >
-              <LogOut size={18} />
-            </button>
+            {/* Nome utente e Logout */}
+            <div className="flex items-center gap-2 pl-2 border-l border-slate-800">
+              <div className="hidden sm:block text-right">
+                <p className="text-xs font-bold text-slate-200 leading-tight">
+                  {user?.user_metadata?.full_name || 'Utente'}
+                </p>
+                <p className="text-[10px] text-emerald-400">Online</p>
+              </div>
+
+              <button
+                onClick={() => supabase.auth.signOut()}
+                title="Logout"
+                className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white border border-slate-700 transition"
+              >
+                <LogOut size={18} />
+              </button>
+            </div>
           </div>
         </div>
       </header>
