@@ -12,7 +12,7 @@ export default defineConfig({
       devOptions: {
         enabled: true, // Abilita PWA e Service Worker in dev (localhost)
       },
-      includeAssets: ['pwa-192x192.png', 'pwa-512x512.png'],
+      includeAssets: ['pwa-180x180.png', 'pwa-192x192.png', 'pwa-512x512.png'],
       manifest: {
         name: 'Split Expenses',
         short_name: 'SplitExpenses',
@@ -24,13 +24,13 @@ export default defineConfig({
         start_url: '/',
         icons: [
           {
-            src: 'pwa-192x192.png',
-            sizes: '192x192',
+            src: 'pwa-180x180.png',
+            sizes: '180x180',
             type: 'image/png',
           },
           {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
+            src: 'pwa-192x192.png',
+            sizes: '192x192',
             type: 'image/png',
           },
           {
