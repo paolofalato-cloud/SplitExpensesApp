@@ -73,6 +73,51 @@ export async function getGroupExpenses(groupId: string): Promise<Expense[]> {
   return data || []
 }
 
+// Aggiorna una spesa esistente e ricalcola le quote dei membri
+export async function updateExpense(
+  expenseId: string,
+  description: string,
+  amount: number,
+  category: string,
+  memberIds: string[]
+): Promise<boolean> {
+  // 1. Aggiorna i dati della spesa principale
+  const { error: expenseError } = await supabase
+    .from('expenses')
+    .update({
+      description,
+      amount,
+      category,
+    })
+    .eq('id', expenseId)
+
+  if (expenseError) {
+    console.error('Errore aggiornamento spesa:', expenseError.message)
+    return false
+  }
+
+  // 2. Ricalcola le quote se presenti membri
+  if (memberIds && memberIds.length > 0) {
+    const splitAmount = Number((amount / memberIds.length).toFixed(2))
+
+    // Elimina le vecchie quote e inserisci le nuove ricalcolate
+    await supabase.from('expense_splits').delete().eq('expense_id', expenseId)
+
+    const splits = memberIds.map((userId) => ({
+      expense_id: expenseId,
+      user_id: userId,
+      amount_owed: splitAmount,
+    }))
+
+    const { error: splitsError } = await supabase.from('expense_splits').insert(splits)
+    if (splitsError) {
+      console.error('Errore ricalcolo quote:', splitsError.message)
+    }
+  }
+
+  return true
+}
+
 // Registra un rimborso tra due utenti (Pagatore -> Ricevente)
 export async function addSettlement(
   groupId: string,

@@ -8,6 +8,7 @@ import type { Expense } from './lib/expenses'
 import ExpenseDetailModal from './components/ExpenseDetailModal'
 import InstallPrompt from './components/InstallPrompt'
 import { Toaster, toast } from 'sonner'
+import { subscribeToPushNotifications, unsubscribeFromPushNotifications, checkPushSubscription } from './lib/push'
 
 // Import per Saldi e Rimborsi
 import { calculateGroupBalances, simplifyDebts } from './lib/balances'
@@ -36,6 +37,10 @@ import {
   CheckCircle2,
   Settings,
   Save,
+  X,
+  Search,
+  Bell, 
+  BellCheck,
   LogOut as LeaveIcon,
   Trash2 as DeleteIcon,
 } from 'lucide-react'
@@ -62,11 +67,17 @@ export default function App() {
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null)
   const [isExpenseDetailOpen, setIsExpenseDetailOpen] = useState(false)
 
+  // Stati Filtro e Ricerca Spese
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('all')
+
   // Stati Saldi e Rimborsi
   const [balances, setBalances] = useState<MemberBalance[]>([])
   const [settlements, setSettlements] = useState<SettlementTransaction[]>([])
   const [selectedSettlement, setSelectedSettlement] = useState<SettlementTransaction | null>(null)
   const [isSettleOpen, setIsSettleOpen] = useState(false)
+
+  const [isPushSubscribed, setIsPushSubscribed] = useState(false)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -106,18 +117,17 @@ export default function App() {
     }
   }, [user])
 
-  // Quando cambia il gruppo attivo o le spese, ricarica dati e saldi
+  // Quando cambia il gruppo attivo, ricarica dati, membri e saldi
   useEffect(() => {
     if (activeGroup) {
       loadExpenses(activeGroup.id)
       loadMembers(activeGroup.id)
-      loadBalances(activeGroup.id)
       setEditGroupName(activeGroup.name)
       setEditGroupCurrency(activeGroup.currency)
     }
   }, [activeGroup])
 
-  // Notifiche Realtime: ascolta le nuove spese aggiunte da altri membri nel gruppo attivo
+  // Notifiche Realtime: ascolta INSERIMENTO, MODIFICA ed ELIMINAZIONE spese nel gruppo attivo
   useEffect(() => {
     if (!activeGroup || !user) return
 
@@ -126,32 +136,64 @@ export default function App() {
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*', // Ascolta tutti gli eventi (INSERT, UPDATE, DELETE)
           schema: 'public',
           table: 'expenses',
           filter: `group_id=eq.${activeGroup.id}`,
         },
         (payload) => {
-          const newExpense = payload.new as Expense
-
-          // Se la spesa è stata inserita da un altro membro del gruppo
-          if (newExpense.paid_by !== user.id) {
-            toast.info('Nuova spesa aggiunta nel gruppo! 📊', {
-              description: `${newExpense.description} - €${Number(newExpense.amount).toFixed(2)}`,
-            })
-
-            // Ricarica automaticamente spese e saldi aggiornati
-            loadExpenses(activeGroup.id)
+          if (payload.eventType === 'INSERT') {
+            const newExpense = payload.new as Expense
+            if (newExpense.paid_by !== user.id) {
+              toast.info('Nuova spesa aggiunta nel gruppo! 📊', {
+                description: `${newExpense.description} - €${Number(newExpense.amount).toFixed(2)}`,
+              })
+            }
           }
+
+          // In tutti i casi (INSERT, UPDATE, DELETE), ricarica spese e saldi
+          loadExpenses(activeGroup.id)
         }
       )
       .subscribe()
 
-    // Pulizia del canale quando si cambia gruppo o si chiude l'app
     return () => {
       supabase.removeChannel(channel)
     }
   }, [activeGroup, user])
+
+  // Controlla lo stato delle notifiche quando l'utente si autentica
+  useEffect(() => {
+    if (user) {
+      checkPushSubscription(user.id).then((isSubscribed) => {
+        setIsPushSubscribed(isSubscribed)
+      })
+    }
+  }, [user])
+
+  const handleTogglePushNotifications = async () => {
+    if (!user) return
+
+    if (isPushSubscribed) {
+      // Se sono già attive, le DISABILITIAMO
+      const success = await unsubscribeFromPushNotifications(user.id)
+      if (success) {
+        setIsPushSubscribed(false)
+        toast.success('Notifiche Web Push disattivate.')
+      } else {
+        toast.error('Impossibile disattivare le notifiche.')
+      }
+    } else {
+      // Se sono inattive, le ATTIBIAMO
+      const success = await subscribeToPushNotifications(user.id)
+      if (success) {
+        setIsPushSubscribed(true)
+        toast.success('Notifiche Web Push attivate con successo! 🎉')
+      } else {
+        toast.error('Impossibile attivare le notifiche. Assicurati di essere su localhost o HTTPS.')
+      }
+    }
+  }
 
   const loadGroups = async () => {
     const fetchedGroups = await getUserGroups()
@@ -164,7 +206,7 @@ export default function App() {
   const loadExpenses = async (groupId: string) => {
     const fetchedExpenses = await getGroupExpenses(groupId)
     setExpenses(fetchedExpenses)
-    loadBalances(groupId)
+    await loadBalances(groupId)
   }
 
   const loadMembers = async (groupId: string) => {
@@ -195,7 +237,7 @@ export default function App() {
       const updated = { ...activeGroup, name: editGroupName.trim(), currency: editGroupCurrency }
       setActiveGroup(updated)
       setGroups((prev) => prev.map((g) => (g.id === updated.id ? updated : g)))
-      alert('Impostazioni gruppo salvate con successo!')
+      toast.success('Impostazioni gruppo salvate con successo!')
     }
   }
 
@@ -227,9 +269,14 @@ export default function App() {
     switch (cat) {
       case 'food': return '🍕'
       case 'groceries': return '🛒'
-      case 'transport': return '🚗'
       case 'home': return '🏠'
+      case 'kids': return '👶'
+      case 'health': return '🏥'
+      case 'transport': return '🚗'
+      case 'pets': return '🐾'
+      case 'shopping': return '🛍️'
       case 'leisure': return '🎉'
+      case 'travel': return '🏖️'
       case 'settlement': return '🤝'
       default: return '📦'
     }
@@ -247,8 +294,19 @@ export default function App() {
     return <Auth />
   }
 
+  const filteredExpenses = expenses.filter((exp) => {
+    const matchesSearch = exp.description.toLowerCase().includes(searchQuery.toLowerCase())
+    const matchesCategory = selectedCategoryFilter === 'all' || exp.category === selectedCategoryFilter
+    return matchesSearch && matchesCategory
+  })
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 pb-24">
+    <div className="min-h-screen bg-slate-950 text-slate-100 pb-24 relative overflow-hidden">
+
+      {/* --- SFUMATURE DI SFONDO AMBIENTALI --- */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[500px] h-[300px] bg-emerald-500/10 rounded-full blur-[120px] pointer-events-none" />
+      <div className="absolute top-1/3 -right-40 w-[350px] h-[350px] bg-teal-500/5 rounded-full blur-[100px] pointer-events-none" />
+      
       {/* Banner Installazione PWA */}
       <InstallPrompt />
 
@@ -461,6 +519,43 @@ export default function App() {
                     </select>
                   </div>
 
+                  <div className="pt-4 border-t border-slate-800 space-y-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                      Notifiche & Preferenze
+                    </h3>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        handleTogglePushNotifications()
+                      }}
+                      className={`w-full p-3.5 border rounded-2xl text-xs font-semibold flex items-center justify-between transition active:scale-[0.99] ${
+                        isPushSubscribed
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                          : 'bg-slate-900 border-slate-800 hover:border-slate-700 text-slate-200'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2">
+                        {isPushSubscribed ? (
+                          <BellCheck size={16} className="text-emerald-400" />
+                        ) : (
+                          <Bell size={16} className="text-slate-400" />
+                        )}
+                        {isPushSubscribed ? 'Notifiche Push Attive' : 'Attiva Notifiche Web Push'}
+                      </span>
+
+                      <span
+                        className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                          isPushSubscribed ? 'bg-emerald-500/20 text-emerald-300' : 'text-slate-500'
+                        }`}
+                      >
+                        {isPushSubscribed ? 'Abilitato' : 'Inattivo'}
+                      </span>
+                    </button>
+                  </div>
+
                   <button
                     type="submit"
                     disabled={isSavingGroup}
@@ -590,8 +685,9 @@ export default function App() {
             {/* SCHEDA SPESE */}
             {activeTab === 'expenses' && (
               <>
-                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-slate-800/90 border border-slate-800 p-6 shadow-2xl">
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
+                {/* --- HERO CARD (Riepilogo Totale & Saldi) --- */}
+                <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-900 to-emerald-950/40 border border-slate-800 p-6 shadow-2xl">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
 
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-xs font-semibold tracking-wider uppercase text-slate-400 flex items-center gap-1.5">
@@ -646,48 +742,140 @@ export default function App() {
                       <Receipt size={18} className="text-emerald-400" />
                       Spese del Gruppo
                     </h2>
+
+                    {/* Pulsante sempre visibile in cima alla lista */}
+                    <button
+                      onClick={() => setIsAddExpenseOpen(true)}
+                      className="btn-primary text-xs py-1.5 px-3 flex items-center gap-1.5 shadow-md shadow-emerald-500/10"
+                    >
+                      <Plus size={15} /> Aggiungi
+                    </button>
+                  </div>
+                              
+                  {/* BARRA DI RICERCA E FILTRI CATEGORIA */}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        placeholder="Cerca spesa..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-8 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+                      />
+                      <Search size={14} className="absolute left-3 top-2.5 text-slate-500" />
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery('')}
+                          className="absolute right-3 top-2.5 text-slate-500 hover:text-white"
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
+
+                    <select
+                      value={selectedCategoryFilter}
+                      onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                      className="bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-emerald-500 transition"
+                    >
+                      <option value="all">Tutte le categorie</option>
+                      <option value="food">🍕 Cibo & Ristoranti</option>
+                      <option value="groceries">🛒 Supermercato</option>
+                      <option value="home">🏠 Casa & Bollette</option>
+                      <option value="kids">👶 Bambini & Scuola</option>
+                      <option value="health">🏥 Salute & Farmacia</option>
+                      <option value="transport">🚗 Auto & Trasporti</option>
+                      <option value="pets">🐾 Animali Domestici</option>
+                      <option value="shopping">🛍️ Shopping & Abbigliamento</option>
+                      <option value="leisure">🎉 Svago & Intrattenimento</option>
+                      <option value="travel">🏖️ Viaggi & Vacanze</option>
+                      <option value="settlement">🤝 Rimborsi</option>
+                      <option value="general">📦 Altro</option>
+                    </select>
                   </div>
 
-                  {expenses.length > 0 ? (
-                    <div className="space-y-2.5">
-                      {expenses.map((exp) => (
-                        <div
-                          key={exp.id}
-                          onClick={() => {
-                            setSelectedExpense(exp)
-                            setIsExpenseDetailOpen(true)
-                          }}
-                          className="flex items-center justify-between p-4 bg-slate-900/90 rounded-2xl border border-slate-800/80 hover:border-slate-700 transition cursor-pointer active:scale-[0.99]"
-                        >
-                          <div className="flex items-center gap-3.5">
-                            <div className="w-11 h-11 rounded-2xl bg-slate-800/80 border border-slate-700 flex items-center justify-center text-xl">
-                              {getCategoryEmoji(exp.category)}
-                            </div>
-                            <div>
-                              <p className="font-semibold text-sm text-slate-100">{exp.description}</p>
-                              <p className="text-xs text-slate-400">
-                                {new Date(exp.created_at).toLocaleDateString('it-IT', {
-                                  day: 'numeric',
-                                  month: 'short',
-                                })}
-                              </p>
-                            </div>
+                  {/* LISTA SPESE SUDDIVISA PER PERIODO */}
+                  {filteredExpenses.length > 0 ? (() => {
+                    const now = new Date()
+                    const currentMonth = now.getMonth()
+                    const currentYear = now.getFullYear()
+
+                    const thisMonthList = filteredExpenses.filter((exp) => {
+                      const d = new Date(exp.created_at)
+                      return d.getMonth() === currentMonth && d.getFullYear() === currentYear
+                    })
+
+                    const olderList = filteredExpenses.filter((exp) => !thisMonthList.includes(exp))
+
+                    const renderExpenseCard = (exp: typeof filteredExpenses[0]) => (
+                      <div
+                        key={exp.id}
+                        onClick={() => {
+                          setSelectedExpense(exp)
+                          setIsExpenseDetailOpen(true)
+                        }}
+                        className="flex items-center justify-between p-4 bg-slate-900/90 rounded-2xl border border-slate-800/80 hover:border-slate-700 transition cursor-pointer active:scale-[0.99]"
+                      >
+                        <div className="flex items-center gap-3.5">
+                          <div className="w-11 h-11 rounded-2xl bg-slate-800/80 border border-slate-700 flex items-center justify-center text-xl">
+                            {getCategoryEmoji(exp.category)}
                           </div>
-                          <div className="text-right">
-                            <p className="font-bold text-sm text-white">€ {Number(exp.amount).toFixed(2)}</p>
+                          <div>
+                            <p className="font-semibold text-sm text-slate-100">{exp.description}</p>
+                            <p className="text-xs text-slate-400">
+                              {new Date(exp.created_at).toLocaleDateString('it-IT', {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric',
+                              })}
+                            </p>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
+                        <div className="text-right">
+                          <p className="font-bold text-sm text-white">€ {Number(exp.amount).toFixed(2)}</p>
+                        </div>
+                      </div>
+                    )
+
+                    return (
+                      <div className="space-y-6">
+                        {/* Questo Mese */}
+                        {thisMonthList.length > 0 && (
+                          <div className="space-y-2.5">
+                            <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-1">
+                              Questo Mese ({thisMonthList.length})
+                            </h3>
+                            {thisMonthList.map(renderExpenseCard)}
+                          </div>
+                        )}
+
+                        {/* Precedenti */}
+                        {olderList.length > 0 && (
+                          <div className="space-y-2.5">
+                            <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-400 px-1 pt-2">
+                              Spese Precedenti ({olderList.length})
+                            </h3>
+                            {olderList.map(renderExpenseCard)}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })() : (
                     <div className="card-glass p-8 text-center space-y-3">
-                      <p className="text-slate-400 text-sm">Non ci sono ancora spese in questo gruppo.</p>
-                      <button
-                        onClick={() => setIsAddExpenseOpen(true)}
-                        className="btn-primary text-xs py-2 px-4 inline-flex items-center gap-1.5"
-                      >
-                        <Plus size={16} /> Aggiungi la prima spesa
-                      </button>
+                      <p className="text-slate-400 text-sm">
+                        {expenses.length === 0
+                          ? 'Non ci sono ancora spese in questo gruppo.'
+                          : 'Nessuna spesa corrisponde ai filtri impostati.'}
+                      </p>
+                      {expenses.length === 0 && (
+                        <button
+                          onClick={() => setIsAddExpenseOpen(true)}
+                          className="btn-primary text-xs py-2 px-4 inline-flex items-center gap-1.5"
+                        >
+                          <Plus size={16} /> Aggiungi la prima spesa
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -747,7 +935,12 @@ export default function App() {
             onClose={() => setIsExpenseDetailOpen(false)}
             expense={selectedExpense}
             currentUserId={user.id}
-            onExpenseDeleted={() => loadExpenses(activeGroup.id)}
+            members={members}
+            onExpenseUpdated={() => {
+              if (activeGroup) {
+                loadExpenses(activeGroup.id)
+              }
+            }}
           />
 
           <ShareGroupModal

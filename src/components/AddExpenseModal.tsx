@@ -122,9 +122,14 @@ export default function AddExpenseModal({
             >
               <option value="food">🍕 Cibo & Ristoranti</option>
               <option value="groceries">🛒 Supermercato</option>
-              <option value="transport">🚗 Trasporti & Viaggi</option>
+              <option value="transport">🚗 Auto & Trasporti</option>
+              <option value="kids">👶 Bambini & Scuola</option>
+              <option value="health">🏥 Salute & Farmacia</option>
               <option value="home">🏠 Casa & Bollette</option>
+              <option value="pets">🐾 Animali Domestici</option>
+              <option value="shopping">🛍️ Shopping & Abbigliamento</option>
               <option value="leisure">🎉 Svago & Intrattenimento</option>
+              <option value="travel">🏖️ Viaggi & Vacanze</option>
               <option value="general">📦 Altro</option>
             </select>
           </div>

@@ -15,7 +15,7 @@ export default function Navigation({ activeTab, setActiveTab, onAddExpense }: Na
   ]
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800 z-40 px-4 py-2">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900/80 backdrop-blur-xl border-t border-slate-800/80 z-40 px-4 pt-2 pb-5 shadow-2xl shadow-black/50">
       <div className="max-w-md mx-auto flex items-center justify-around relative">
         {/* Prime due schede: Spese e Saldi */}
         {navItems.slice(0, 2).map((item) => {
@@ -25,24 +25,29 @@ export default function Navigation({ activeTab, setActiveTab, onAddExpense }: Na
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-xl transition ${
-                isActive ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+              className={`relative flex flex-col items-center gap-1 py-1.5 px-3 rounded-2xl transition-all duration-300 ${
+                isActive 
+                  ? 'text-emerald-400 font-semibold scale-105' 
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
               }`}
             >
-              <Icon size={20} />
-              <span className="text-[11px]">{item.label}</span>
+              {isActive && (
+                <span className="absolute -top-2 w-8 h-1 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/50" />
+              )}
+              <Icon size={21} strokeWidth={isActive ? 2.5 : 2} />
+              <span className="text-[10px] tracking-tight">{item.label}</span>
             </button>
           )
         })}
 
-        {/* Pulsante Centrale FAB per Aggiungere Spese */}
-        <div className="relative -top-5">
+        {/* Pulsante Centrale FAB con Effetto Glow e Gradiente */}
+        <div className="relative -top-6">
           <button
             onClick={onAddExpense}
             title="Aggiungi Spesa"
-            className="w-13 h-13 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 flex items-center justify-center shadow-lg shadow-emerald-500/30 transition transform active:scale-95"
+            className="w-14 h-14 rounded-full bg-gradient-to-tr from-emerald-600 to-emerald-400 hover:from-emerald-500 hover:to-emerald-300 text-slate-950 flex items-center justify-center shadow-xl shadow-emerald-500/40 ring-4 ring-slate-950 transition-all duration-300 transform active:scale-90 hover:scale-105"
           >
-            <Plus size={28} strokeWidth={2.5} />
+            <Plus size={30} strokeWidth={2.8} />
           </button>
         </div>
 
@@ -54,12 +59,17 @@ export default function Navigation({ activeTab, setActiveTab, onAddExpense }: Na
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-xl transition ${
-                isActive ? 'text-emerald-400 font-bold' : 'text-slate-400 hover:text-slate-200'
+              className={`relative flex flex-col items-center gap-1 py-1.5 px-3 rounded-2xl transition-all duration-300 ${
+                isActive 
+                  ? 'text-emerald-400 font-semibold scale-105' 
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
               }`}
             >
-              <Icon size={20} />
-              <span className="text-[11px]">{item.label}</span>
+              {isActive && (
+                <span className="absolute -top-2 w-8 h-1 bg-emerald-500 rounded-full shadow-lg shadow-emerald-500/50" />
+              )}
+              <Icon size={21} strokeWidth={isActive ? 2.5 : 2} />
+              <span className="text-[10px] tracking-tight">{item.label}</span>
             </button>
           )
         })}
