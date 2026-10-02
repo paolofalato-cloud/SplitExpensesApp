@@ -962,7 +962,7 @@ export default function App() {
         setActiveTab={setActiveTab}
         onAddExpense={() => {
           if (activeGroup) setIsAddExpenseOpen(true)
-          else setIsCreateGroupOpen(true)
+          else alert("Seleziona prima un gruppo attivo per aggiungere membri!")
         }}
         onAddMember={() => {
           // Funzione o stato che apre il modale per aggiungere/invitare membri

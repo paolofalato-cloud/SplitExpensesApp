@@ -5,7 +5,7 @@ interface NavigationProps {
   setActiveTab: (tab: string) => void
   onAddExpense: () => void
   onAddMember?: () => void
-  onCreateGroup?: () => void // <-- Nuova prop per il nuovo gruppo
+  onCreateGroup?: () => void 
 }
 
 export default function Navigation({ activeTab, setActiveTab, onAddExpense, onAddMember, onCreateGroup }: NavigationProps) {
@@ -21,7 +21,7 @@ export default function Navigation({ activeTab, setActiveTab, onAddExpense, onAd
     if (activeTab === 'members' && onAddMember) {
       onAddMember()
     } else if (activeTab === 'settings' && onCreateGroup) {
-      onCreateGroup() // <-- Apre il modale creazione gruppo
+      onCreateGroup() 
     } else {
       onAddExpense()
     }
