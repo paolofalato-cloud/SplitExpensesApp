@@ -964,6 +964,13 @@ export default function App() {
           if (activeGroup) setIsAddExpenseOpen(true)
           else setIsCreateGroupOpen(true)
         }}
+        onAddMember={() => {
+          // Funzione o stato che apre il modale per aggiungere/invitare membri
+          setIsShareGroupOpen(true) 
+        }}
+        onCreateGroup={() => {
+          setIsCreateGroupOpen(true)
+        }}
       />
 
       {/* Modali */}
