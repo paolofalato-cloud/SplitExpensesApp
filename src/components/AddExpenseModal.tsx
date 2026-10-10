@@ -1,13 +1,15 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { addExpense } from '../lib/expenses'
 import { X, Receipt, Euro } from 'lucide-react'
 import { toast } from 'sonner'
+import type { GroupMember } from '../lib/groups'
 
 interface AddExpenseModalProps {
   isOpen: boolean
   onClose: () => void
   groupId: string
   currentUserId: string
+  members: GroupMember[]
   onExpenseAdded: () => void
 }
 
@@ -16,12 +18,21 @@ export default function AddExpenseModal({
   onClose,
   groupId,
   currentUserId,
+  members,
   onExpenseAdded,
 }: AddExpenseModalProps) {
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState('food')
   const [loading, setLoading] = useState(false)
+  const [selectedSplitMembers, setSelectedSplitMembers] = useState<string[]>([])
+
+  // Inizializza o resetta i membri selezionati ogni volta che si apre il modale
+  useEffect(() => {
+    if (isOpen && members.length > 0) {
+      setSelectedSplitMembers(members.map((m) => m.user_id))
+    }
+  }, [isOpen, members])
 
   if (!isOpen) return null
 
@@ -34,20 +45,24 @@ export default function AddExpenseModal({
       return
     }
 
+    if (selectedSplitMembers.length === 0) {
+      toast.error('Seleziona almeno un partecipante per la divisione')
+      return
+    }
+
     setLoading(true)
-    // Per ora dividiamo tra l'utente corrente (puoi estendere a tutti i membri)
+    
     const success = await addExpense(
       groupId,
       description.trim(),
       parsedAmount,
       currentUserId,
-      [currentUserId],
+      selectedSplitMembers,
       category
     )
     setLoading(false)
 
     if (success) {
-      // Notifica in-app di successo
       toast.success('Spesa registrata! 💸', {
         description: `${description.trim()} - €${parsedAmount.toFixed(2)}`,
       })
@@ -57,16 +72,27 @@ export default function AddExpenseModal({
       onExpenseAdded()
       onClose()
     } else {
-      // Notifica in-app di errore
       toast.error('Errore durante il salvataggio della spesa', {
         description: 'Riprova tra qualche istante',
       })
     }
   }
 
+  const toggleMemberSplit = (userId: string) => {
+    if (selectedSplitMembers.includes(userId)) {
+      if (selectedSplitMembers.length === 1) {
+        toast.error('La spesa deve essere divisa almeno tra una persona')
+        return
+      }
+      setSelectedSplitMembers(selectedSplitMembers.filter((id) => id !== userId))
+    } else {
+      setSelectedSplitMembers([...selectedSplitMembers, userId])
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative">
+      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
         <button
           onClick={onClose}
           className="absolute top-5 right-5 p-2 text-slate-400 hover:text-white rounded-xl bg-slate-800/50 hover:bg-slate-800 transition"
@@ -132,6 +158,35 @@ export default function AddExpenseModal({
               <option value="travel">🏖️ Viaggi & Vacanze</option>
               <option value="general">📦 Altro</option>
             </select>
+          </div>
+
+          {/* Selezione Membri per la divisione */}
+          <div>
+            <label className="block text-xs text-slate-400 font-medium mb-1.5">Dividi con:</label>
+            <div className="space-y-1.5 bg-slate-950 p-2.5 rounded-xl border border-slate-800 max-h-36 overflow-y-auto">
+              {members.map((member) => {
+                const isSelected = selectedSplitMembers.includes(member.user_id)
+                return (
+                  <button
+                    type="button"
+                    key={member.user_id}
+                    onClick={() => toggleMemberSplit(member.user_id)}
+                    className={`w-full flex items-center justify-between p-2 rounded-lg text-xs transition ${
+                      isSelected 
+                        ? 'bg-emerald-500/10 text-emerald-400 font-semibold border border-emerald-500/20' 
+                        : 'text-slate-400 hover:bg-slate-900'
+                    }`}
+                  >
+                    <span>{member.full_name} {member.user_id === currentUserId && '(Tu)'}</span>
+                    <span className={`w-4 h-4 rounded-md border flex items-center justify-center text-[10px] ${
+                      isSelected ? 'bg-emerald-500 border-emerald-500 text-slate-950 font-bold' : 'border-slate-700'
+                    }`}>
+                      {isSelected ? '✓' : ''}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           <div className="flex gap-3 pt-2">

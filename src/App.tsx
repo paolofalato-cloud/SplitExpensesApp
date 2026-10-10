@@ -987,7 +987,10 @@ export default function App() {
             onClose={() => setIsAddExpenseOpen(false)}
             groupId={activeGroup.id}
             currentUserId={user.id}
-            onExpenseAdded={() => loadExpenses(activeGroup.id)}
+            members={members} 
+            onExpenseAdded={() => {
+              loadExpenses(activeGroup.id)
+            }}
           />
 
           <ExpenseDetailModal
