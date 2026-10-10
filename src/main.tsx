@@ -8,3 +8,17 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+
+// Registrazione del Service Worker per le notifiche Push
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register('/sw.js')
+      .then((registration) => {
+        console.log('Service Worker registrato con successo:', registration.scope)
+      })
+      .catch((error) => {
+        console.error('Errore durante la registrazione del Service Worker:', error)
+      })
+  })
+}

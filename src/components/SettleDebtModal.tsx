@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { addSettlement } from '../lib/expenses'
-import { X, CheckCircle, ArrowRight } from 'lucide-react'
+import { X, CheckCircle, ArrowRight, ShieldAlert } from 'lucide-react'
 import type { SettlementTransaction } from '../lib/balances'
+import { toast } from 'sonner'
 
 interface SettleDebtModalProps {
   isOpen: boolean
   onClose: () => void
   groupId: string
+  currentUserId: string
   settlement: SettlementTransaction | null
   onSettled: () => void
 }
@@ -15,6 +17,7 @@ export default function SettleDebtModal({
   isOpen,
   onClose,
   groupId,
+  currentUserId,
   settlement,
   onSettled,
 }: SettleDebtModalProps) {
@@ -22,7 +25,15 @@ export default function SettleDebtModal({
 
   if (!isOpen || !settlement) return null
 
+  // Verifica se l'utente corrente è colui che deve pagare
+  const isDebtor = settlement.fromUserId === currentUserId
+
   const handleSettle = async () => {
+    if (!isDebtor) {
+      toast.error('Solo chi deve versare il saldo può confermare il rimborso')
+      return
+    }
+
     setLoading(true)
     const success = await addSettlement(
       groupId,
@@ -33,8 +44,13 @@ export default function SettleDebtModal({
     setLoading(false)
 
     if (success) {
+      toast.success('Rimborso registrato! 🤝', {
+        description: `${settlement.fromName} ha saldato €${settlement.amount.toFixed(2)} a ${settlement.toName}`,
+      })
       onSettled()
       onClose()
+    } else {
+      toast.error('Errore durante la registrazione del rimborso')
     }
   }
 
@@ -58,7 +74,7 @@ export default function SettleDebtModal({
         </p>
 
         {/* Box Dettaglio Pagamento */}
-        <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 mb-6 space-y-3">
+        <div className="bg-slate-950 border border-slate-800 rounded-2xl p-4 mb-5 space-y-3">
           <div className="flex items-center justify-between text-sm font-semibold">
             <span className="text-rose-400">{settlement.fromName}</span>
             <ArrowRight size={16} className="text-slate-500" />
@@ -66,6 +82,16 @@ export default function SettleDebtModal({
           </div>
           <p className="text-2xl font-black text-white">€ {settlement.amount.toFixed(2)}</p>
         </div>
+
+        {/* Avviso se l'utente non è il debitore */}
+        {!isDebtor && (
+          <div className="mb-5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center gap-2 text-amber-400 text-left text-xs">
+            <ShieldAlert size={18} className="shrink-0" />
+            <span>
+              Solo <strong>{settlement.fromName}</strong> (chi deve versare l'importo) può confermare l'avvenuto saldo.
+            </span>
+          </div>
+        )}
 
         <div className="flex gap-3">
           <button
@@ -77,8 +103,8 @@ export default function SettleDebtModal({
           </button>
           <button
             onClick={handleSettle}
-            disabled={loading}
-            className="btn-primary flex-1 text-sm py-2.5 disabled:opacity-50"
+            disabled={loading || !isDebtor}
+            className="btn-primary flex-1 text-sm py-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Registrazione...' : 'Conferma Saldo'}
           </button>

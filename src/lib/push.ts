@@ -32,7 +32,7 @@ export async function subscribeToPushNotifications(userId: string): Promise<bool
 
     let subscription = await registration.pushManager.getSubscription()
 
-    // Se non esiste ancora una subscription, ne creiamo una se abbiamo la VAPID key
+    // Se non esiste ancora una subscription, ne creiamo una tramite la VAPID key
     if (!subscription && VAPID_PUBLIC_KEY) {
       const convertedVapidKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
       subscription = await registration.pushManager.subscribe({
@@ -41,22 +41,21 @@ export async function subscribeToPushNotifications(userId: string): Promise<bool
       })
     }
 
-    // 3. Tenta il salvataggio su Supabase se abbiamo ottenuto la subscription
+    // 3. Salvataggio su Supabase
     if (subscription) {
       const { error } = await supabase.from('user_push_subscriptions').upsert(
         {
           user_id: userId,
           subscription: subscription.toJSON(),
         },
-        { onConflict: 'user_id, subscription' }
+        { onConflict: 'user_id' }
       )
 
       if (error) {
-        console.error('Errore salvataggio Supabase (proseguiamo comunque):', error)
+        console.error('Errore salvataggio Supabase:', error)
       }
     }
 
-    // Se il permesso è stato concesso dal browser, l'iscrizione locale è valida
     return true
   } catch (err) {
     console.error('Errore durante l\'iscrizione alle notifiche Push:', err)
@@ -74,11 +73,9 @@ export async function unsubscribeFromPushNotifications(userId: string): Promise<
     const subscription = await registration.pushManager.getSubscription()
 
     if (subscription) {
-      // 1. Rimuove la subscription dal browser
       await subscription.unsubscribe()
     }
 
-    // 2. Rimuove la riga corrispondente da Supabase
     const { error } = await supabase
       .from('user_push_subscriptions')
       .delete()
@@ -97,7 +94,7 @@ export async function unsubscribeFromPushNotifications(userId: string): Promise<
 
 export async function checkPushSubscription(userId: string | null): Promise<boolean> {
   if (!userId) return false
-  
+
   try {
     if (!('serviceWorker' in navigator) || !('Notification' in window)) {
       return false

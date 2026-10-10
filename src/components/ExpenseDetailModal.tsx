@@ -49,6 +49,10 @@ export default function ExpenseDetailModal({
 
   const isPayer = expense.paid_by === currentUserId
 
+  // Trova il nome del pagatore nell'array members
+  const payerMember = members.find((m) => (m.user_id || m.id) === expense.paid_by)
+  const payerName = isPayer ? 'Tu' : payerMember?.full_name || 'Un partecipante'
+
   const handleDelete = async () => {
     setLoading(true)
     const success = await deleteExpense(expense.id)
@@ -72,7 +76,6 @@ export default function ExpenseDetailModal({
       return
     }
 
-    // Estrae l'ID utente corretto sia che la proprietà si chiami user_id o id
     const memberIds =
       members.length > 0
         ? (members.map((m) => m.user_id || m.id).filter(Boolean) as string[])
@@ -91,17 +94,12 @@ export default function ExpenseDetailModal({
     if (success) {
       toast.success('Spesa e saldi aggiornati! ✨')
       
-      // 1. Aggiorna i campi dell'oggetto locale immediatamente per sicurezza
       expense.description = description.trim()
       expense.amount = parsedAmount
       expense.category = category
 
       setIsEditing(false)
-      
-      // 2. Richiama il refresh dei dati su App.tsx
       await onExpenseUpdated()
-      
-      // 3. Chiude il modale
       onClose()
     } else {
       toast.error('Errore durante l\'aggiornamento della spesa')
@@ -137,7 +135,7 @@ export default function ExpenseDetailModal({
           </div>
         </div>
 
-        {/* VISTA CONFERMA ELIMINAZIONE CUSTOM */}
+        {/* VISTA CONFERMA ELIMINAZIONE */}
         {isConfirmingDelete ? (
           <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-5 space-y-4 text-center">
             <div className="w-12 h-12 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto">
@@ -263,7 +261,7 @@ export default function ExpenseDetailModal({
                   <User size={14} className="text-slate-500" /> Pagato da
                 </span>
                 <span className="font-semibold text-white">
-                  {isPayer ? 'Tu' : 'Un partecipante'}
+                  {payerName}
                 </span>
               </div>
 

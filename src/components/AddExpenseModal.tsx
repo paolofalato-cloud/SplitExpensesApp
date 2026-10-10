@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { addExpense } from '../lib/expenses'
-import { X, Receipt, Euro } from 'lucide-react'
+import { X, Receipt, Euro, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import type { GroupMember } from '../lib/groups'
 
@@ -25,12 +25,15 @@ export default function AddExpenseModal({
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState('food')
   const [loading, setLoading] = useState(false)
+  
+  // Toggle per dividere con tutti oppure selezionare manualmente
+  const [isCustomSplit, setIsCustomSplit] = useState(false)
   const [selectedSplitMembers, setSelectedSplitMembers] = useState<string[]>([])
 
-  // Inizializza o resetta i membri selezionati ogni volta che si apre il modale
   useEffect(() => {
     if (isOpen && members.length > 0) {
       setSelectedSplitMembers(members.map((m) => m.user_id))
+      setIsCustomSplit(false)
     }
   }, [isOpen, members])
 
@@ -45,19 +48,24 @@ export default function AddExpenseModal({
       return
     }
 
-    if (selectedSplitMembers.length === 0) {
+    // Se il toggle non è attivo, dividiamo con tutti i membri del gruppo
+    const finalSplitMembers = isCustomSplit
+      ? selectedSplitMembers
+      : members.map((m) => m.user_id)
+
+    if (finalSplitMembers.length === 0) {
       toast.error('Seleziona almeno un partecipante per la divisione')
       return
     }
 
     setLoading(true)
-    
+
     const success = await addExpense(
       groupId,
       description.trim(),
       parsedAmount,
       currentUserId,
-      selectedSplitMembers,
+      finalSplitMembers,
       category
     )
     setLoading(false)
@@ -69,6 +77,7 @@ export default function AddExpenseModal({
 
       setDescription('')
       setAmount('')
+      setIsCustomSplit(false)
       onExpenseAdded()
       onClose()
     } else {
@@ -160,33 +169,55 @@ export default function AddExpenseModal({
             </select>
           </div>
 
-          {/* Selezione Membri per la divisione */}
-          <div>
-            <label className="block text-xs text-slate-400 font-medium mb-1.5">Dividi con:</label>
-            <div className="space-y-1.5 bg-slate-950 p-2.5 rounded-xl border border-slate-800 max-h-36 overflow-y-auto">
-              {members.map((member) => {
-                const isSelected = selectedSplitMembers.includes(member.user_id)
-                return (
-                  <button
-                    type="button"
-                    key={member.user_id}
-                    onClick={() => toggleMemberSplit(member.user_id)}
-                    className={`w-full flex items-center justify-between p-2 rounded-lg text-xs transition ${
-                      isSelected 
-                        ? 'bg-emerald-500/10 text-emerald-400 font-semibold border border-emerald-500/20' 
-                        : 'text-slate-400 hover:bg-slate-900'
-                    }`}
-                  >
-                    <span>{member.full_name} {member.user_id === currentUserId && '(Tu)'}</span>
-                    <span className={`w-4 h-4 rounded-md border flex items-center justify-center text-[10px] ${
-                      isSelected ? 'bg-emerald-500 border-emerald-500 text-slate-950 font-bold' : 'border-slate-700'
-                    }`}>
-                      {isSelected ? '✓' : ''}
-                    </span>
-                  </button>
-                )
-              })}
+          {/* Toggle e Selezione Personalizzata Membri */}
+          <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-semibold text-slate-300">
+                <Users size={15} className="text-emerald-400" />
+                <span>Dividi con tutti i membri ({members.length})</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCustomSplit(!isCustomSplit)}
+                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  isCustomSplit ? 'bg-emerald-500' : 'bg-slate-800'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    isCustomSplit ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </button>
             </div>
+
+            {isCustomSplit && (
+              <div className="pt-2 border-t border-slate-800/80 space-y-1.5 max-h-36 overflow-y-auto">
+                <p className="text-[11px] text-slate-400 pb-1">Seleziona chi partecipa a questa spesa:</p>
+                {members.map((member) => {
+                  const isSelected = selectedSplitMembers.includes(member.user_id)
+                  return (
+                    <button
+                      type="button"
+                      key={member.user_id}
+                      onClick={() => toggleMemberSplit(member.user_id)}
+                      className={`w-full flex items-center justify-between p-2 rounded-lg text-xs transition ${
+                        isSelected
+                          ? 'bg-emerald-500/10 text-emerald-400 font-semibold border border-emerald-500/20'
+                          : 'text-slate-400 hover:bg-slate-900'
+                      }`}
+                    >
+                      <span>{member.full_name} {member.user_id === currentUserId && '(Tu)'}</span>
+                      <span className={`w-4 h-4 rounded-md border flex items-center justify-center text-[10px] ${
+                        isSelected ? 'bg-emerald-500 border-emerald-500 text-slate-950 font-bold' : 'border-slate-700'
+                      }`}>
+                        {isSelected ? '✓' : ''}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           <div className="flex gap-3 pt-2">

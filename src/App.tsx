@@ -861,35 +861,49 @@ export default function App() {
 
                     const olderList = filteredExpenses.filter((exp) => !thisMonthList.includes(exp))
 
-                    const renderExpenseCard = (exp: typeof filteredExpenses[0]) => (
-                      <div
-                        key={exp.id}
-                        onClick={() => {
-                          setSelectedExpense(exp)
-                          setIsExpenseDetailOpen(true)
-                        }}
-                        className="flex items-center justify-between p-4 bg-slate-900/90 rounded-2xl border border-slate-800/80 hover:border-slate-700 transition cursor-pointer active:scale-[0.99]"
-                      >
-                        <div className="flex items-center gap-3.5">
-                          <div className="w-11 h-11 rounded-2xl bg-slate-800/80 border border-slate-700 flex items-center justify-center text-xl">
-                            {getCategoryEmoji(exp.category)}
+                    const renderExpenseCard = (exp: typeof filteredExpenses[0]) => {
+                      // Risolve il nome di chi ha pagato la spesa
+                      const payerMember = members.find((m) => m.user_id === exp.paid_by)
+                      const payerName = exp.paid_by === user.id ? 'Tu' : payerMember?.full_name || 'Un partecipante'
+
+                      return (
+                        <div
+                          key={exp.id}
+                          onClick={() => {
+                            setSelectedExpense(exp)
+                            setIsExpenseDetailOpen(true)
+                          }}
+                          className="flex items-center justify-between p-4 bg-slate-900/90 rounded-2xl border border-slate-800/80 hover:border-slate-700 transition cursor-pointer active:scale-[0.99]"
+                        >
+                          <div className="flex items-center gap-3.5">
+                            <div className="w-11 h-11 rounded-2xl bg-slate-800/80 border border-slate-700 flex items-center justify-center text-xl shrink-0">
+                              {getCategoryEmoji(exp.category)}
+                            </div>
+                            <div>
+                              <p className="font-semibold text-sm text-slate-100">{exp.description}</p>
+                              
+                              {/* Nome Pagatore */}
+                              <p className="text-xs text-slate-400 font-medium mt-0.5">
+                                Pagato da <span className="text-slate-200 font-semibold">{payerName}</span>
+                              </p>
+
+                              {/* Data Formattata in Italiano */}
+                              <p className="text-[10px] text-slate-500 mt-0.5">
+                                {new Date(exp.created_at).toLocaleDateString('it-IT', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-semibold text-sm text-slate-100">{exp.description}</p>
-                            <p className="text-xs text-slate-400">
-                              {new Date(exp.created_at).toLocaleDateString('it-IT', {
-                                day: 'numeric',
-                                month: 'short',
-                                year: 'numeric',
-                              })}
-                            </p>
+                          
+                          <div className="text-right">
+                            <p className="font-bold text-sm text-white">€ {Number(exp.amount).toFixed(2)}</p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <p className="font-bold text-sm text-white">€ {Number(exp.amount).toFixed(2)}</p>
-                        </div>
-                      </div>
-                    )
+                      )
+                    }
 
                     return (
                       <div className="space-y-6">
@@ -1016,6 +1030,7 @@ export default function App() {
             isOpen={isSettleOpen}
             onClose={() => setIsSettleOpen(false)}
             groupId={activeGroup.id}
+            currentUserId={user?.id}
             settlement={selectedSettlement}
             onSettled={() => loadExpenses(activeGroup.id)}
           />

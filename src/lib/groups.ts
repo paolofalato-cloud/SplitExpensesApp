@@ -21,7 +21,7 @@ export async function getUserGroups(): Promise<Group[]> {
 
   const { data, error } = await supabase
     .from('group_members')
-    .select('groups(*)')
+    .select('groups:group_id(*)')
     .eq('user_id', userData.user.id)
 
   if (error) {
