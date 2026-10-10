@@ -54,6 +54,20 @@ export async function addExpense(
     console.error('Errore inserimento quote:', splitsError.message)
   }
 
+  // 4. Invio della notifica push tramite Edge Function (in background)
+  try {
+    await supabase.functions.invoke('send-push', {
+      body: {
+        groupId: groupId,
+        expenseDescription: description,
+        amount: amount,
+        payerId: paidBy,
+      },
+    })
+  } catch (pushErr) {
+    console.error('Errore invio notifica push in background:', pushErr)
+  }
+
   return expense
 }
 
