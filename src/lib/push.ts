@@ -49,6 +49,7 @@ export async function subscribeToPushNotifications(userId: string): Promise<bool
 
       if (error) {
         console.error('Errore salvataggio Supabase:', error)
+        return false
       }
     }
 
@@ -100,31 +101,41 @@ export async function checkPushSubscription(userId: string | null): Promise<bool
       return false
     }
 
-    const registration = await navigator.serviceWorker.ready
+    // 1. Controlla prima se l'utente risulta già registrato su Supabase
+    const { data: dbSub, error } = await supabase
+      .from('user_push_subscriptions')
+      .select('user_id')
+      .eq('user_id', userId)
+      .maybeSingle()
+
+    // 2. Attendi la registrazione del Service Worker
+    const registration = await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)) // timeout di sicurezza
+    ])
+
+    if (!registration) {
+      // Se il SW impiega tempo a caricarsi ma l'utente è su DB, restituisci true
+      return !!dbSub
+    }
+
     let subscription = await registration.pushManager.getSubscription()
 
+    // Se esiste la subscription sul browser, siamo a posto
     if (subscription) {
       return true
     }
 
-    // CONTROLLO DI RISERVA (Resilienza post-deploy):
-    // Se il browser ha perso la subscription a causa di un aggiornamento del SW,
-    // ma l'utente l'aveva attiva su Supabase e ha ancora i permessi, la ripristiniamo in automatico.
-    const { data, error } = await supabase
-      .from('user_push_subscriptions')
-      .select('user_id')
-      .eq('user_id', userId)
-      .single()
-
-    if (data && !error && VAPID_PUBLIC_KEY) {
+    // 3. Se sul browser manca ma l'utente ha la riga su Supabase ed i permessi concessi,
+    // ri-sottoscriviamo in background e restituiamo true per l'UI!
+    if (dbSub && !error && VAPID_PUBLIC_KEY) {
       try {
         const convertedVapidKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
           applicationServerKey: convertedVapidKey,
         })
-        
-        // Aggiorna con la nuova istanza creata
+
         if (subscription) {
           await supabase.from('user_push_subscriptions').upsert(
             {
@@ -133,11 +144,11 @@ export async function checkPushSubscription(userId: string | null): Promise<bool
             },
             { onConflict: 'user_id' }
           )
-          return true
         }
       } catch (subErr) {
-        console.error('Impossibile ripristinare automaticamente la push subscription:', subErr)
+        console.error('Errore ripristino background push:', subErr)
       }
+      return true
     }
 
     return false
