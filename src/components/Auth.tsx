@@ -29,25 +29,35 @@ export default function Auth() {
           },
         })
         if (error) throw error
+
         setMessage({
           type: 'success',
           text: 'Registrazione completata! Controlla la tua email per confermare l\'account o effettua il login.',
         })
+        toast.success('Registrazione completata!')
       } else {
         // Login utente esistente
         const { error } = await supabase.auth.signInWithPassword({
           email,
           password,
         })
-        if (error) {
-          toast.error('Credenziali errate o account non trovato', { description: error.message })
-        } else {
-          toast.success('Bentornato! 👋')
-        }
+        if (error) throw error
+
+        toast.success('Bentornato! 👋')
       }
     } catch (err: unknown) {
       const error = err as Error
-      setMessage({ type: 'error', text: error.message || 'Si è verificato un errore' })
+      
+      // Mappatura messaggi d'errore leggibili in italiano
+      let friendlyMessage = error.message || 'Si è verificato un errore'
+      if (error.message.includes('Invalid login credentials')) {
+        friendlyMessage = 'Email o password non corrette.'
+      } else if (error.message.includes('User already registered')) {
+        friendlyMessage = 'Esiste già un account registrato con questa email.'
+      }
+
+      toast.error('Impossibile accedere', { description: friendlyMessage })
+      setMessage({ type: 'error', text: friendlyMessage })
     } finally {
       setLoading(false)
     }
@@ -62,18 +72,24 @@ export default function Auth() {
     }
 
     setLoading(true)
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin, // Reindirizza l'utente alla PWA dopo il click nella mail
-    })
-    setLoading(false)
+    setMessage(null)
 
-    if (error) {
-      toast.error('Errore nell\'invio della mail', { description: error.message })
-    } else {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      })
+      if (error) throw error
+
       toast.success('Email di recupero inviata! ✉️', {
         description: 'Controlla la tua casella di posta (inclusa la cartella Spam).',
       })
       setIsForgotPassword(false)
+    } catch (err: unknown) {
+      const error = err as Error
+      toast.error('Errore nell\'invio della mail', { description: error.message })
+      setMessage({ type: 'error', text: error.message })
+    } finally {
+      setLoading(false)
     }
   }
   
