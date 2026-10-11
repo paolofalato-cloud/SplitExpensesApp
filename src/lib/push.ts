@@ -20,6 +20,11 @@ export async function subscribeToPushNotifications(userId: string): Promise<bool
     return false
   }
 
+  if (!VAPID_PUBLIC_KEY) {
+    console.error('VAPID_PUBLIC_KEY mancante nelle variabili d\'ambiente.')
+    return false
+  }
+
   try {
     const permission = await Notification.requestPermission()
     if (permission !== 'granted') {
@@ -29,7 +34,7 @@ export async function subscribeToPushNotifications(userId: string): Promise<bool
     const registration = await navigator.serviceWorker.ready
     let subscription = await registration.pushManager.getSubscription()
 
-    if (!subscription && VAPID_PUBLIC_KEY) {
+    if (!subscription) {
       const convertedVapidKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
@@ -98,52 +103,21 @@ export async function checkPushSubscription(userId: string | null): Promise<bool
       return false
     }
 
+    // Se il permesso non è concesso a livello browser, disattivato
     if (Notification.permission !== 'granted') {
       return false
     }
 
+    // Controlliamo se esiste la riga su Supabase
     const { data: dbSub, error } = await supabase
       .from('user_push_subscriptions')
       .select('user_id')
       .eq('user_id', userId)
       .maybeSingle()
 
-    const registration = await Promise.race([
-      navigator.serviceWorker.ready,
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000))
-    ])
-
-    if (!registration) {
-      return !!dbSub
-    }
-
-    let subscription = await registration.pushManager.getSubscription()
-
-    if (subscription) {
-      return true
-    }
-
-    if (dbSub && !error && VAPID_PUBLIC_KEY) {
-      try {
-        const convertedVapidKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: convertedVapidKey,
-        })
-
-        if (subscription) {
-          const subJson = subscription.toJSON()
-          await supabase.from('user_push_subscriptions').upsert(
-            {
-              user_id: userId,
-              subscription: JSON.parse(JSON.stringify(subJson)),
-            },
-            { onConflict: 'user_id' }
-          )
-        }
-      } catch (subErr) {
-        console.error('Errore ripristino background push:', subErr)
-      }
+    // Se la riga c'è su Supabase ed il permesso è concesso, l'utente è attivo!
+    // Evitiamo chiamate a subscribe() automatiche all'avvio che i browser bloccano.
+    if (dbSub && !error) {
       return true
     }
 
