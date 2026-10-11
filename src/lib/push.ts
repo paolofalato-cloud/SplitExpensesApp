@@ -20,19 +20,16 @@ export async function subscribeToPushNotifications(userId: string): Promise<bool
   }
 
   try {
-    // 1. Richiedi permesso browser
     const permission = await Notification.requestPermission()
     if (permission !== 'granted') {
       console.warn('Permesso notifiche negato dall\'utente:', permission)
       return false
     }
 
-    // 2. Attendi Service Worker
     const registration = await navigator.serviceWorker.ready
 
     let subscription = await registration.pushManager.getSubscription()
 
-    // Se non esiste ancora una subscription, ne creiamo una tramite la VAPID key
     if (!subscription && VAPID_PUBLIC_KEY) {
       const convertedVapidKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
       subscription = await registration.pushManager.subscribe({
@@ -41,7 +38,6 @@ export async function subscribeToPushNotifications(userId: string): Promise<bool
       })
     }
 
-    // 3. Salvataggio su Supabase
     if (subscription) {
       const { error } = await supabase.from('user_push_subscriptions').upsert(
         {
@@ -105,9 +101,46 @@ export async function checkPushSubscription(userId: string | null): Promise<bool
     }
 
     const registration = await navigator.serviceWorker.ready
-    const subscription = await registration.pushManager.getSubscription()
+    let subscription = await registration.pushManager.getSubscription()
 
-    return !!subscription
+    if (subscription) {
+      return true
+    }
+
+    // CONTROLLO DI RISERVA (Resilienza post-deploy):
+    // Se il browser ha perso la subscription a causa di un aggiornamento del SW,
+    // ma l'utente l'aveva attiva su Supabase e ha ancora i permessi, la ripristiniamo in automatico.
+    const { data, error } = await supabase
+      .from('user_push_subscriptions')
+      .select('user_id')
+      .eq('user_id', userId)
+      .single()
+
+    if (data && !error && VAPID_PUBLIC_KEY) {
+      try {
+        const convertedVapidKey = urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: convertedVapidKey,
+        })
+        
+        // Aggiorna con la nuova istanza creata
+        if (subscription) {
+          await supabase.from('user_push_subscriptions').upsert(
+            {
+              user_id: userId,
+              subscription: subscription.toJSON(),
+            },
+            { onConflict: 'user_id' }
+          )
+          return true
+        }
+      } catch (subErr) {
+        console.error('Impossibile ripristinare automaticamente la push subscription:', subErr)
+      }
+    }
+
+    return false
   } catch (err) {
     console.error('Errore nel check notifiche:', err)
     return false

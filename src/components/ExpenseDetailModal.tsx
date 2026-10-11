@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { deleteExpense, updateExpense } from '../lib/expenses'
-import { X, Trash2, Calendar, User, Edit2, Save, Euro, Receipt, AlertTriangle } from 'lucide-react'
+import { X, Trash2, Calendar, User, Edit2, Save, Euro, Receipt, AlertTriangle, Users } from 'lucide-react'
 import type { Expense } from '../lib/expenses'
 import { toast } from 'sonner'
 
@@ -35,6 +35,9 @@ export default function ExpenseDetailModal({
   const [category, setCategory] = useState('general')
   const [loading, setLoading] = useState(false)
 
+  const [isCustomSplit, setIsCustomSplit] = useState(false)
+  const [selectedSplitMembers, setSelectedSplitMembers] = useState<string[]>([])
+
   useEffect(() => {
     if (expense) {
       setDescription(expense.description)
@@ -42,14 +45,24 @@ export default function ExpenseDetailModal({
       setCategory(expense.category || 'general')
       setIsEditing(false)
       setIsConfirmingDelete(false)
+
+      const allMemberIds = members.map((m) => m.user_id || m.id).filter(Boolean) as string[]
+      const expenseMemberIds = expense.memberIds || allMemberIds
+
+      // Se il numero di partecipanti è inferiore al totale, attiviamo la modalità ridotta
+      if (expenseMemberIds.length > 0 && expenseMemberIds.length < allMemberIds.length) {
+        setIsCustomSplit(true)
+        setSelectedSplitMembers(expenseMemberIds)
+      } else {
+        setIsCustomSplit(false)
+        setSelectedSplitMembers(allMemberIds)
+      }
     }
-  }, [expense])
+  }, [expense, members])
 
   if (!isOpen || !expense) return null
 
   const isPayer = expense.paid_by === currentUserId
-
-  // Trova il nome del pagatore nell'array members
   const payerMember = members.find((m) => (m.user_id || m.id) === expense.paid_by)
   const payerName = isPayer ? 'Tu' : payerMember?.full_name || 'Un partecipante'
 
@@ -67,6 +80,18 @@ export default function ExpenseDetailModal({
     }
   }
 
+  const toggleMemberSplit = (userId: string) => {
+    if (selectedSplitMembers.includes(userId)) {
+      if (selectedSplitMembers.length === 1) {
+        toast.error('La spesa deve essere divisa almeno tra una persona')
+        return
+      }
+      setSelectedSplitMembers(selectedSplitMembers.filter((id) => id !== userId))
+    } else {
+      setSelectedSplitMembers([...selectedSplitMembers, userId])
+    }
+  }
+
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault()
     const parsedAmount = parseFloat(amount)
@@ -76,10 +101,15 @@ export default function ExpenseDetailModal({
       return
     }
 
-    const memberIds =
-      members.length > 0
-        ? (members.map((m) => m.user_id || m.id).filter(Boolean) as string[])
-        : [expense.paid_by]
+    const allMemberIds = members.map((m) => m.user_id || m.id).filter(Boolean) as string[]
+    const finalSplitMembers = isCustomSplit
+      ? selectedSplitMembers
+      : (allMemberIds.length > 0 ? allMemberIds : [expense.paid_by])
+
+    if (finalSplitMembers.length === 0) {
+      toast.error('Seleziona almeno un partecipante per la divisione')
+      return
+    }
 
     setLoading(true)
     const success = await updateExpense(
@@ -87,7 +117,7 @@ export default function ExpenseDetailModal({
       description.trim(),
       parsedAmount,
       category,
-      memberIds
+      finalSplitMembers
     )
     setLoading(false)
 
@@ -97,6 +127,7 @@ export default function ExpenseDetailModal({
       expense.description = description.trim()
       expense.amount = parsedAmount
       expense.category = category
+      expense.memberIds = finalSplitMembers
 
       setIsEditing(false)
       await onExpenseUpdated()
@@ -108,7 +139,7 @@ export default function ExpenseDetailModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative space-y-5">
+      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto space-y-5">
         <button
           onClick={onClose}
           className="absolute top-5 right-5 p-2 text-slate-400 hover:text-white rounded-xl bg-slate-800/50 hover:bg-slate-800 transition"
@@ -116,7 +147,6 @@ export default function ExpenseDetailModal({
           <X size={18} />
         </button>
 
-        {/* Header */}
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
             <Receipt size={20} />
@@ -135,7 +165,6 @@ export default function ExpenseDetailModal({
           </div>
         </div>
 
-        {/* VISTA CONFERMA ELIMINAZIONE */}
         {isConfirmingDelete ? (
           <div className="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-5 space-y-4 text-center">
             <div className="w-12 h-12 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto">
@@ -167,7 +196,6 @@ export default function ExpenseDetailModal({
             </div>
           </div>
         ) : isEditing ? (
-          /* FORM DI MODIFICA */
           <form onSubmit={handleUpdate} className="space-y-4">
             <div>
               <label className="block text-xs text-slate-400 font-medium mb-1.5">
@@ -224,6 +252,83 @@ export default function ExpenseDetailModal({
               </select>
             </div>
 
+            <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-xs font-semibold text-slate-300">
+                  <Users size={15} className="text-emerald-400" />
+                  <span>
+                    {isCustomSplit
+                      ? `Dividi con ${selectedSplitMembers.length} di ${members.length} membri`
+                      : `Divisa equamente con tutti (${members.length})`}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextState = !isCustomSplit
+                    setIsCustomSplit(nextState)
+                    if (!nextState) {
+                      const allIds = members.map((m) => (m.user_id || m.id) as string).filter(Boolean)
+                      setSelectedSplitMembers(allIds)
+                    }
+                  }}
+                  className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    isCustomSplit ? 'bg-emerald-500' : 'bg-slate-800'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      isCustomSplit ? 'translate-x-4' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              <div className="text-[11px] text-slate-500 flex justify-between items-center">
+                <span>Seleziona un numero ridotto di persone</span>
+                {isCustomSplit && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allIds = members.map((m) => (m.user_id || m.id) as string).filter(Boolean)
+                      setSelectedSplitMembers(allIds)
+                    }}
+                    className="text-emerald-400 font-medium hover:underline text-[10px]"
+                  >
+                    Seleziona tutti
+                  </button>
+                )}
+              </div>
+
+              {isCustomSplit && (
+                <div className="pt-2 border-t border-slate-800/80 space-y-1.5 max-h-36 overflow-y-auto">
+                  {members.map((member) => {
+                    const mId = (member.user_id || member.id) as string
+                    const isSelected = selectedSplitMembers.includes(mId)
+                    return (
+                      <button
+                        type="button"
+                        key={mId}
+                        onClick={() => toggleMemberSplit(mId)}
+                        className={`w-full flex items-center justify-between p-2 rounded-lg text-xs transition ${
+                          isSelected
+                            ? 'bg-emerald-500/10 text-emerald-400 font-semibold border border-emerald-500/20'
+                            : 'text-slate-400 hover:bg-slate-900'
+                        }`}
+                      >
+                        <span>{member.full_name} {mId === currentUserId && '(Tu)'}</span>
+                        <span className={`w-4 h-4 rounded-md border flex items-center justify-center text-[10px] ${
+                          isSelected ? 'bg-emerald-500 border-emerald-500 text-slate-950 font-bold' : 'border-slate-700'
+                        }`}>
+                          {isSelected ? '✓' : ''}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
             <div className="flex gap-3 pt-3">
               <button
                 type="button"
@@ -243,7 +348,6 @@ export default function ExpenseDetailModal({
             </div>
           </form>
         ) : (
-          /* VISTA DETTAGLIO */
           <>
             <div className="space-y-1">
               <span className="text-[10px] uppercase font-extrabold tracking-wider text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded-full inline-block">

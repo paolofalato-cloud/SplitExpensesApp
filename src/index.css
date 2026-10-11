@@ -17,3 +17,15 @@
     @apply bg-slate-900/80 border border-slate-800/80 backdrop-blur-md rounded-3xl shadow-xl;
   }
 }
+
+/* Impedisce il pinch-to-zoom accidentale su mobile */
+html, body {
+  touch-action: pan-x pan-y;
+  -webkit-text-size-adjust: 100%;
+  overscroll-behavior-y: none;
+}
+
+/* Permette il normale comportamento e zoom all'interno delle modali */
+.fixed.inset-0 {
+  touch-action: auto;
+}

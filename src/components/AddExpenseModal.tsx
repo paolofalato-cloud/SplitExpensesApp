@@ -26,7 +26,7 @@ export default function AddExpenseModal({
   const [category, setCategory] = useState('food')
   const [loading, setLoading] = useState(false)
   
-  // Toggle per dividere con tutti oppure selezionare manualmente
+  // Custom split attivato solo se l'utente vuole ridurre i partecipanti
   const [isCustomSplit, setIsCustomSplit] = useState(false)
   const [selectedSplitMembers, setSelectedSplitMembers] = useState<string[]>([])
 
@@ -48,7 +48,6 @@ export default function AddExpenseModal({
       return
     }
 
-    // Se il toggle non è attivo, dividiamo con tutti i membri del gruppo
     const finalSplitMembers = isCustomSplit
       ? selectedSplitMembers
       : members.map((m) => m.user_id)
@@ -169,16 +168,26 @@ export default function AddExpenseModal({
             </select>
           </div>
 
-          {/* Toggle e Selezione Personalizzata Membri */}
+          {/* Toggle e Selezione Personalizzata Partecipanti */}
           <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-2.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-xs font-semibold text-slate-300">
                 <Users size={15} className="text-emerald-400" />
-                <span>Dividi con tutti i membri ({members.length})</span>
+                <span>
+                  {isCustomSplit
+                    ? `Dividi con ${selectedSplitMembers.length} di ${members.length} membri`
+                    : `Seleziona un numero ridotto di persone (${members.length})`}
+                </span>
               </div>
               <button
                 type="button"
-                onClick={() => setIsCustomSplit(!isCustomSplit)}
+                onClick={() => {
+                  const nextState = !isCustomSplit
+                  setIsCustomSplit(nextState)
+                  if (!nextState) {
+                    setSelectedSplitMembers(members.map((m) => m.user_id))
+                  }
+                }}
                 className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
                   isCustomSplit ? 'bg-emerald-500' : 'bg-slate-800'
                 }`}
@@ -191,9 +200,21 @@ export default function AddExpenseModal({
               </button>
             </div>
 
+            <div className="text-[11px] text-slate-500 flex justify-between items-center">
+              <span>Attualmente divisa equamente con tutti</span>
+              {isCustomSplit && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedSplitMembers(members.map((m) => m.user_id))}
+                  className="text-emerald-400 font-medium hover:underline text-[10px]"
+                >
+                  Seleziona tutti
+                </button>
+              )}
+            </div>
+
             {isCustomSplit && (
               <div className="pt-2 border-t border-slate-800/80 space-y-1.5 max-h-36 overflow-y-auto">
-                <p className="text-[11px] text-slate-400 pb-1">Seleziona chi partecipa a questa spesa:</p>
                 {members.map((member) => {
                   const isSelected = selectedSplitMembers.includes(member.user_id)
                   return (

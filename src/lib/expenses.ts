@@ -9,6 +9,7 @@ export interface Expense {
   category: string
   date: string
   created_at: string
+  memberIds?: string[]
 }
 
 // Salva una nuova spesa e la dividi equamente tra i membri del gruppo
@@ -71,20 +72,48 @@ export async function addExpense(
   return expense
 }
 
-// Recupera tutte le spese di un determinato gruppo
+// Recupera tutte le spese di un determinato gruppo con i relativi partecipanti
 export async function getGroupExpenses(groupId: string): Promise<Expense[]> {
-  const { data, error } = await supabase
+  // 1. Recupera le spese
+  const { data: expenses, error: expError } = await supabase
     .from('expenses')
     .select('*')
     .eq('group_id', groupId)
     .order('created_at', { ascending: false })
 
-  if (error) {
-    console.error('Errore recupero spese:', error.message)
+  if (expError || !expenses) {
+    console.error('Errore recupero spese:', expError?.message)
     return []
   }
 
-  return data || []
+  // 2. Recupera gli split associati a tutte le spese del gruppo in un'unica chiamata
+  const expenseIds = expenses.map((e) => e.id)
+  if (expenseIds.length === 0) return []
+
+  const { data: splits, error: splitError } = await supabase
+    .from('expense_splits')
+    .select('expense_id, user_id')
+    .in('expense_id', expenseIds)
+
+  if (splitError) {
+    console.error('Errore recupero quote spese:', splitError.message)
+  }
+
+  // 3. Mappa i partecipanti dentro ciascuna spesa
+  const splitsMap: Record<string, string[]> = {}
+  if (splits) {
+    splits.forEach((s) => {
+      if (!splitsMap[s.expense_id]) {
+        splitsMap[s.expense_id] = []
+      }
+      splitsMap[s.expense_id].push(s.user_id)
+    })
+  }
+
+  return expenses.map((exp) => ({
+    ...exp,
+    memberIds: splitsMap[exp.id] || [],
+  }))
 }
 
 // Aggiorna una spesa esistente e ricalcola le quote dei membri
